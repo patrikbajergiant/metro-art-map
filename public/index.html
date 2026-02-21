@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Stockholm Metro Art Map</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{font-family:'DM Sans',sans-serif;background:#0a0a0f;color:#e8e8e8;height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+header{background:linear-gradient(135deg,#0d1117,#161b22);border-bottom:1px solid rgba(255,255,255,.06);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;z-index:10}
+h1{font-family:'Space Mono',monospace;font-size:16px;font-weight:700;background:linear-gradient(90deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;white-space:nowrap}
+.legend{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:12px;color:#9ca3af}
+.legend-dot,.legend-square{width:12px;height:12px;flex-shrink:0;border:2px solid rgba(255,255,255,.15)}
+.legend-dot{border-radius:50%}.legend-square{border-radius:3px}
+.dot-blue{background:#3b82f6;border-color:#60a5fa}.dot-orange{background:#f59e0b;border-color:#fbbf24}.square-green{background:#22c55e;border-color:#4ade80}
+#map{flex:1;z-index:1}
+.custom-popup .leaflet-popup-content-wrapper{background:#1e1e2e;color:#e8e8e8;border-radius:12px;border:1px solid rgba(255,255,255,.08);box-shadow:0 8px 32px rgba(0,0,0,.5);font-family:'DM Sans',sans-serif;padding:0;overflow:hidden}
+.custom-popup .leaflet-popup-tip{background:#1e1e2e;border:1px solid rgba(255,255,255,.08)}
+.custom-popup .leaflet-popup-content{margin:0;font-size:14px;line-height:1.5;width:260px!important}
+.popup-img-wrap{width:100%;height:150px;background:#12121a;overflow:hidden;position:relative}
+.popup-img-wrap img{width:100%;height:100%;object-fit:cover;display:block}
+.popup-img-wrap .img-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#4b5563;font-size:12px;font-family:'Space Mono',monospace}
+.popup-body{padding:10px 12px}
+.popup-name{font-family:'Space Mono',monospace;font-weight:700;font-size:14px;margin-bottom:6px}
+.popup-tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:.5px}
+.tag-both{background:rgba(59,130,246,.2);color:#93c5fd}
+.tag-article{background:rgba(245,158,11,.2);color:#fcd34d}
+.tag-list{background:rgba(34,197,94,.2);color:#86efac}
+.popup-line{margin-top:5px;font-size:12px;color:#9ca3af}
+.popup-search{display:inline-block;margin-top:8px;padding:5px 10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:6px;color:#93c5fd;text-decoration:none;font-size:11px;font-family:'Space Mono',monospace;transition:background .15s}
+.popup-search:hover{background:rgba(255,255,255,.12)}
+.sidebar{position:absolute;top:70px;right:10px;z-index:1000;background:rgba(22,27,34,.92);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:14px;width:220px;max-height:calc(100dvh - 90px);overflow-y:auto;font-size:13px}
+.sidebar h3{font-family:'Space Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#6b7280;margin-bottom:8px}
+.sidebar ul{list-style:none;padding:0}
+.sidebar li{padding:5px 7px;border-radius:6px;cursor:pointer;display:flex;align-items:center;gap:7px;transition:background .15s;font-size:12px}
+.sidebar li:hover{background:rgba(255,255,255,.05)}
+.sidebar .s-dot,.sidebar .s-square{width:9px;height:9px;flex-shrink:0}
+.sidebar .s-dot{border-radius:50%}.sidebar .s-square{border-radius:2px}
+.s-blue{background:#3b82f6}.s-orange{background:#f59e0b}.s-green{background:#22c55e}
+.mobile-toggle{display:none;position:absolute;bottom:16px;left:50%;transform:translateX(-50%);z-index:1000;background:rgba(22,27,34,.95);backdrop-filter:blur(12px);border:1px solid rgba(255,255,255,.1);border-radius:24px;padding:10px 20px;color:#e8e8e8;font-family:'Space Mono',monospace;font-size:12px;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,.4)}
+.mobile-sheet{display:none;position:absolute;bottom:0;left:0;right:0;z-index:1001;background:rgba(22,27,34,.97);backdrop-filter:blur(16px);border-top:1px solid rgba(255,255,255,.08);border-radius:16px 16px 0 0;padding:12px 16px 24px;max-height:50dvh;overflow-y:auto;transform:translateY(100%);transition:transform .3s ease}
+.mobile-sheet.open{transform:translateY(0)}
+.mobile-sheet .drag-handle{width:36px;height:4px;background:rgba(255,255,255,.2);border-radius:2px;margin:0 auto 12px}
+.mobile-sheet ul{list-style:none;padding:0}
+.mobile-sheet li{padding:8px 10px;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:14px}
+.mobile-sheet li:active{background:rgba(255,255,255,.08)}
+.mobile-sheet .s-dot,.mobile-sheet .s-square{width:10px;height:10px;flex-shrink:0}
+.mobile-sheet .s-dot{border-radius:50%}.mobile-sheet .s-square{border-radius:2px}
+@media(max-width:700px){
+  header{padding:10px 12px;gap:6px}
+  h1{font-size:13px}
+  .legend{gap:10px}
+  .legend-item{font-size:10px;gap:4px}
+  .legend-dot,.legend-square{width:10px;height:10px}
+  .sidebar{display:none}
+  .mobile-toggle{display:block}
+  .mobile-sheet{display:block}
+  .custom-popup .leaflet-popup-content{width:240px!important}
+  .popup-img-wrap{height:130px}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🚇 Stockholm Metro Art</h1>
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot dot-blue"></div>Průnik</div>
+    <div class="legend-item"><div class="legend-dot dot-orange"></div>Článek</div>
+    <div class="legend-item"><div class="legend-square square-green"></div>Seznam</div>
+  </div>
+</header>
+
+<div id="map"></div>
+
+<div class="sidebar" id="sidebar">
+  <h3>Stanice</h3>
+  <ul id="station-list"></ul>
+</div>
+
+<div class="mobile-toggle" onclick="toggleSheet()">▲ Seznam stanic</div>
+<div class="mobile-sheet" id="mobileSheet">
+  <div class="drag-handle"></div>
+  <ul id="mobile-list"></ul>
+</div>
+
+<script>
+var stations = [
+  {n:"T-Centralen",a:59.331,o:18.0596,t:"both",l:"Blue / Red / Green",w:"T-Centralen_metro_station"},
+  {n:"Stadion",a:59.3428,o:18.0825,t:"both",l:"Red Line",w:"Stadion_metro_station"},
+  {n:"Solna Centrum",a:59.36,o:18.0003,t:"both",l:"Blue Line",w:"Solna_centrum_metro_station"},
+  {n:"Tekniska Högskolan",a:59.3458,o:18.0716,t:"both",l:"Red Line",w:"Tekniska_h%C3%B6gskolan_metro_station"},
+  {n:"Tensta",a:59.3942,o:17.9035,t:"both",l:"Blue Line",w:"Tensta_metro_station"},
+  {n:"Kungsträdgården",a:59.3308,o:18.0714,t:"both",l:"Blue Line",w:"Kungstr%C3%A4dg%C3%A5rden_metro_station"},
+  {n:"Mörby Centrum",a:59.3982,o:18.0364,t:"both",l:"Red Line",w:"M%C3%B6rby_centrum_metro_station"},
+  {n:"Odenplan",a:59.3428,o:18.049,t:"both",l:"Green / Citybanan",w:"Odenplan_metro_station"},
+  {n:"Rådhuset",a:59.3305,o:18.0474,t:"article",l:"Blue Line",w:"R%C3%A5dhuset_metro_station"},
+  {n:"Akalla",a:59.4143,o:17.913,t:"article",l:"Blue Line",w:"Akalla_metro_station"},
+  {n:"Universitetet",a:59.3652,o:18.0555,t:"article",l:"Red Line",w:"Universitetet_metro_station"},
+  {n:"Bagarmossen",a:59.2768,o:18.131,t:"list",l:"Green Line",w:"Bagarmossen_metro_station"},
+  {n:"Hallonbergen",a:59.3742,o:17.982,t:"list",l:"Blue Line",w:"Hallonbergen_metro_station"},
+  {n:"Hötorget",a:59.3353,o:18.0636,t:"list",l:"Green Line",w:"H%C3%B6torget_metro_station"},
+  {n:"Östermalmstorg",a:59.3346,o:18.0755,t:"list",l:"Red Line",w:"%C3%96stermalmstorg_metro_station"},
+  {n:"Solna Strand",a:59.359,o:17.9745,t:"list",l:"Blue Line",w:"Solna_strand_metro_station"},
+  {n:"Thorildsplan",a:59.3322,o:18.0235,t:"list",l:"Green Line",w:"Thorildsplan_metro_station"}
+];
+
+var metroLines = [
+  {c:"#3b82f6",p:[[59.3308,18.0714],[59.331,18.0596],[59.3305,18.0474],[59.332,18.032],[59.3385,18.013],[59.35,17.99],[59.359,17.9745],[59.365,17.978],[59.3742,17.982],[59.381,17.975],[59.36,18.0003]]},
+  {c:"#3b82f6",p:[[59.3742,17.982],[59.383,17.95],[59.39,17.925],[59.4143,17.913]]},
+  {c:"#3b82f6",p:[[59.365,17.978],[59.375,17.94],[59.3942,17.9035]]},
+  {c:"#ef4444",p:[[59.285,18],[59.295,18.023],[59.302,18.034],[59.308,18.05],[59.313,18.063],[59.318,18.072],[59.323,18.068],[59.331,18.0596],[59.3346,18.0755],[59.3428,18.0825],[59.3458,18.0716],[59.3652,18.0555],[59.38,18.045],[59.392,18.04],[59.3982,18.0364]]},
+  {c:"#22c55e",p:[[59.333,17.995],[59.33,18.01],[59.3322,18.0235],[59.339,18.038],[59.3428,18.049],[59.34,18.056],[59.3353,18.0636],[59.331,18.0596],[59.323,18.068],[59.318,18.072],[59.313,18.075],[59.308,18.078],[59.298,18.085],[59.292,18.095],[59.287,18.105],[59.281,18.118],[59.2768,18.131]]}
+];
+
+var map = L.map('map', {zoomControl: false}).setView([59.345, 18.02], 12);
+L.control.zoom({position: 'topleft'}).addTo(map);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '© OSM © CARTO', subdomains: 'abcd', maxZoom: 19
+}).addTo(map);
+
+metroLines.forEach(function(l) {
+  L.polyline(l.p, {color: l.c, weight: 3, opacity: 0.4, dashArray: '8 6', lineCap: 'round'}).addTo(map);
+});
+
+var allMarkers = {};
+
+function createIcon(t) {
+  var s = {
+    both: 'width:18px;height:18px;border-radius:50%;background:#3b82f6;border:3px solid #93c5fd;box-shadow:0 0 12px rgba(59,130,246,.5)',
+    article: 'width:18px;height:18px;border-radius:50%;background:#f59e0b;border:3px solid #fcd34d;box-shadow:0 0 12px rgba(245,158,11,.5)',
+    list: 'width:16px;height:16px;border-radius:3px;background:#22c55e;border:3px solid #86efac;box-shadow:0 0 12px rgba(34,197,94,.5)'
+  };
+  var sz = t === 'list' ? [16,16] : [18,18];
+  var an = t === 'list' ? [8,8] : [9,9];
+  return L.divIcon({className:'', html:'<div style="'+s[t]+'"></div>', iconSize:sz, iconAnchor:an, popupAnchor:[0,-12]});
+}
+
+function tagHtml(t) {
+  return {
+    both: '<span class="popup-tag tag-both">Průnik</span>',
+    article: '<span class="popup-tag tag-article">Pouze článek</span>',
+    list: '<span class="popup-tag tag-list">Pouze seznam</span>'
+  }[t];
+}
+
+function googleImg(name) {
+  return 'https://www.google.com/search?tbm=isch&q=' + encodeURIComponent(name + ' metro station Stockholm art');
+}
+
+function popupHtml(s, imgUrl) {
+  var img = imgUrl
+    ? '<div class="popup-img-wrap"><img src="'+imgUrl+'" alt="'+s.n+'" referrerpolicy="no-referrer" onerror="this.parentElement.style.display=\'none\'" /></div>'
+    : '';
+  return img + '<div class="popup-body"><div class="popup-name">'+s.n+'</div>'+tagHtml(s.t)+'<div class="popup-line">📍 '+s.l+'</div><a class="popup-search" href="'+googleImg(s.n)+'" target="_blank" rel="noopener">🔍 Více fotek</a></div>';
+}
+
+function loadingPopup(s) {
+  return '<div class="popup-img-wrap"><div class="img-loading">📷 Načítám…</div></div><div class="popup-body"><div class="popup-name">'+s.n+'</div>'+tagHtml(s.t)+'<div class="popup-line">📍 '+s.l+'</div><a class="popup-search" href="'+googleImg(s.n)+'" target="_blank" rel="noopener">🔍 Více fotek</a></div>';
+}
+
+async function fetchWikiThumb(wiki) {
+  try {
+    var r = await fetch('https://en.wikipedia.org/api/rest_v1/page/summary/' + wiki);
+    if (!r.ok) return null;
+    var d = await r.json();
+    if (d.thumbnail && d.thumbnail.source) return d.thumbnail.source.replace(/\/\d+px-/, '/640px-');
+    return null;
+  } catch(e) { return null; }
+}
+
+var imageCache = {};
+var listEl = document.getElementById('station-list');
+var mobileListEl = document.getElementById('mobile-list');
+
+var sorted = [...stations].sort(function(a, b) {
+  var order = {both:0, article:1, list:2};
+  return order[a.t] - order[b.t] || a.n.localeCompare(b.n);
+});
+
+sorted.forEach(function(s) {
+  var icon = createIcon(s.t);
+  var marker = L.marker([s.a, s.o], {icon: icon})
+    .addTo(map)
+    .bindPopup(loadingPopup(s), {className:'custom-popup', maxWidth:280, minWidth:240});
+
+  marker.on('popupopen', async function() {
+    if (imageCache[s.w] !== undefined) {
+      marker.setPopupContent(popupHtml(s, imageCache[s.w]));
+      marker.getPopup().update();
+      return;
+    }
+    var imgUrl = await fetchWikiThumb(s.w);
+    imageCache[s.w] = imgUrl || '';
+    marker.setPopupContent(popupHtml(s, imgUrl));
+    marker.getPopup().update();
+  });
+
+  allMarkers[s.n] = marker;
+
+  [listEl, mobileListEl].forEach(function(el) {
+    var li = document.createElement('li');
+    var dc = s.t === 'both' ? 's-blue' : s.t === 'article' ? 's-orange' : 's-green';
+    var sc = s.t === 'list' ? 's-square' : 's-dot';
+    li.innerHTML = '<div class="'+sc+' '+dc+'"></div>' + s.n;
+    li.addEventListener('click', function() {
+      map.setView([s.a, s.o], 15, {animate: true});
+      marker.openPopup();
+      closeSheet();
+    });
+    el.appendChild(li);
+  });
+});
+
+var group = L.featureGroup(Object.values(allMarkers));
+map.fitBounds(group.getBounds().pad(0.1));
+
+function toggleSheet() {
+  document.getElementById('mobileSheet').classList.toggle('open');
+}
+function closeSheet() {
+  document.getElementById('mobileSheet').classList.remove('open');
+}
+map.on('click', closeSheet);
+</script>
+</body>
+</html>
