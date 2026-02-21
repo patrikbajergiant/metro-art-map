@@ -165,29 +165,51 @@ function loadingPopup(s) {
   return '<div class="popup-img-wrap"><div class="img-loading">📷 Načítám…</div></div><div class="popup-body"><div class="popup-name">'+s.n+'</div>'+tagHtml(s.t)+'<div class="popup-line">📍 '+s.l+'</div><a class="popup-search" href="'+googleImg(s.n)+'" target="_blank" rel="noopener">🔍 Více fotek</a></div>';
 }
 
+// Use MediaWiki Action API with origin=* for CORS
 async function fetchWikiThumb(wiki) {
-  try {
-    // Try REST API first
-    var r = await fetch('https://en.wikipedia.org/api/rest_v1/page/summary/' + wiki);
-    if (r.ok) {
+  var title = decodeURIComponent(wiki).replace(/_/g, ' ');
+  var methods = [
+    // Method 1: Action API with pageimages
+    async function() {
+      var u = 'https://en.wikipedia.org/w/api.php?action=query&titles=' + encodeURIComponent(title) + '&prop=pageimages&pithumbsize=640&format=json&origin=*';
+      var r = await fetch(u);
       var d = await r.json();
-      if (d.thumbnail && d.thumbnail.source) {
-        return d.thumbnail.source.replace(/\/\d+px-/, '/640px-');
+      var pg = Object.values(d.query.pages)[0];
+      return (pg && pg.thumbnail) ? pg.thumbnail.source : null;
+    },
+    // Method 2: REST API
+    async function() {
+      var r = await fetch('https://en.wikipedia.org/api/rest_v1/page/summary/' + wiki);
+      var d = await r.json();
+      return (d.thumbnail && d.thumbnail.source) ? d.thumbnail.source : null;
+    },
+    // Method 3: Action API with images prop
+    async function() {
+      var u = 'https://en.wikipedia.org/w/api.php?action=query&titles=' + encodeURIComponent(title) + '&prop=images&format=json&origin=*';
+      var r = await fetch(u);
+      var d = await r.json();
+      var pg = Object.values(d.query.pages)[0];
+      if (pg && pg.images && pg.images.length > 0) {
+        // Find first jpg/png image
+        var img = pg.images.find(function(i) { return /\.(jpg|jpeg|png)$/i.test(i.title); });
+        if (img) {
+          var fname = img.title.replace('File:', '');
+          var u2 = 'https://en.wikipedia.org/w/api.php?action=query&titles=File:' + encodeURIComponent(fname) + '&prop=imageinfo&iiprop=url&iiurlwidth=640&format=json&origin=*';
+          var r2 = await fetch(u2);
+          var d2 = await r2.json();
+          var pg2 = Object.values(d2.query.pages)[0];
+          return (pg2 && pg2.imageinfo && pg2.imageinfo[0]) ? pg2.imageinfo[0].thumburl : null;
+        }
       }
+      return null;
     }
-  } catch(e) {}
-  try {
-    // Fallback: MediaWiki Action API with CORS
-    var title = decodeURIComponent(wiki).replace(/_/g, ' ');
-    var u = 'https://en.wikipedia.org/w/api.php?action=query&titles=' + encodeURIComponent(title) + '&prop=pageimages&pithumbsize=640&format=json&origin=*';
-    var r2 = await fetch(u);
-    if (r2.ok) {
-      var d2 = await r2.json();
-      var pages = d2.query.pages;
-      var pg = Object.values(pages)[0];
-      if (pg && pg.thumbnail && pg.thumbnail.source) return pg.thumbnail.source;
-    }
-  } catch(e2) {}
+  ];
+  for (var i = 0; i < methods.length; i++) {
+    try {
+      var url = await methods[i]();
+      if (url) return url;
+    } catch(e) { console.log('Method ' + (i+1) + ' failed for ' + title, e); }
+  }
   return null;
 }
 
@@ -212,7 +234,9 @@ sorted.forEach(function(s) {
       marker.getPopup().update();
       return;
     }
+    console.log('Fetching image for: ' + s.n + ' (' + s.w + ')');
     var imgUrl = await fetchWikiThumb(s.w);
+    console.log('Image result for ' + s.n + ':', imgUrl);
     imageCache[s.w] = imgUrl || '';
     marker.setPopupContent(popupHtml(s, imgUrl));
     marker.getPopup().update();
